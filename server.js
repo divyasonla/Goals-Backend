@@ -13,9 +13,9 @@ app.use(express.json());
 
 // CORS Middleware
 app.use(cors({
-  origin: [process.env.FRONTEND_URL,'http://localhost:8080', 'http://localhost:8081', 'http://localhost:5173'], // Allow multiple Vite ports
+  origin: 'https://goals-frontend-rosy.vercel.app/', // Frontend URL
   methods: ['GET', 'POST', 'PUT', 'DELETE'], // Allowed HTTP methods
-  credentials: true // Allow cookies if needed
+  credentials: true, // Allow cookies if needed
 }));
 
 // Routes
