@@ -13,7 +13,7 @@ app.use(express.json());
 
 // CORS Middleware
 app.use(cors({
-  origin: ['http://localhost:8080', 'http://localhost:8081', 'http://localhost:5173'], // Allow multiple Vite ports
+  origin: [process.env.FRONTEND_URL,'http://localhost:8080', 'http://localhost:8081', 'http://localhost:5173'], // Allow multiple Vite ports
   methods: ['GET', 'POST', 'PUT', 'DELETE'], // Allowed HTTP methods
   credentials: true // Allow cookies if needed
 }));
