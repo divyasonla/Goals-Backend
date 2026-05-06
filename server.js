@@ -12,10 +12,28 @@ const PORT = process.env.PORT || 5000;
 app.use(express.json());
 
 // CORS Middleware
+// app.use(cors({
+//   origin: 'https://goals-frontend-rosy.vercel.app/', // Frontend URL
+//   methods: ['GET', 'POST', 'PUT', 'DELETE'], // Allowed HTTP methods
+//   credentials: true, // Allow cookies if needed
+// }));\
+
+
+const allowedOrigins = [
+  'https://goals-frontend-rosy.vercel.app',
+  'https://goals-frontend-mzhawki6i-divyas-projects-4af8f9ad.vercel.app',
+];
+
 app.use(cors({
-  origin: 'https://goals-frontend-rosy.vercel.app/', // Frontend URL
-  methods: ['GET', 'POST', 'PUT', 'DELETE'], // Allowed HTTP methods
-  credentials: true, // Allow cookies if needed
+  origin: (origin, callback) => {
+    if (allowedOrigins.includes(origin) || !origin) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  methods: ['GET', 'POST', 'PUT', 'DELETE'],
+  credentials: true,
 }));
 
 // Routes

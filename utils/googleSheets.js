@@ -36,7 +36,7 @@ const appendGoalToSheet = async (data) => {
 
         const response = await sheets.spreadsheets.values.append({
             spreadsheetId: sheetId,
-            range: `${sheetName}!A:I`,
+            range: `${sheetName}!A2:I`, // Start appending from row 2
             valueInputOption: 'USER_ENTERED',
             requestBody: {
                 values: [data]
