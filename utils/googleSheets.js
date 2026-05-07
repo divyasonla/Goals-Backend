@@ -31,7 +31,7 @@ const appendGoalToSheet = async (data) => {
             return { success: true, mocked: true };
         }
 
-        const type = data[1];
+        const type = data[2];
         const sheetName = type === 'Weekly' ? 'Sheet2' : 'Sheet1';
 
         const response = await sheets.spreadsheets.values.append({
@@ -60,7 +60,7 @@ const updateGoalInSheet = async (rowIndex, data) => {
             return { success: true, mocked: true };
         }
 
-        const type = data[1];
+        const type = data[2];
         const sheetName = type === 'Weekly' ? 'Sheet2' : 'Sheet1';
 
         const range = `${sheetName}!A${rowIndex}:I${rowIndex}`;
@@ -93,7 +93,7 @@ const fetchGoalsFromSheet = async (userEmail, type) => {
 
         const response = await sheets.spreadsheets.values.get({
             spreadsheetId: sheetId,
-            range: `${sheetName}!A:Z`,
+            range: `${sheetName}!A2:Z`,
         });
 
         const rows = response.data.values || [];
@@ -104,28 +104,29 @@ const fetchGoalsFromSheet = async (userEmail, type) => {
             absoluteIndex: index + 1
         }));
 
-        // Exclude header row if present
-        const dataRows = parsedRows.length > 0 && parsedRows[0].row[0] === "User ID / Email" ? parsedRows.slice(1) : parsedRows;
+        // Exclude header row if present (now header is 'Username')
+        const dataRows = parsedRows.length > 0 && parsedRows[0].row[0] === "Username" ? parsedRows.slice(1) : parsedRows;
 
         let userGoals = dataRows;
         if (userEmail) {
-            userGoals = userGoals.filter(r => r.row[0] === userEmail);
+            userGoals = userGoals.filter(r => r.row[1] === userEmail);
         }
 
         if (type) {
-            userGoals = userGoals.filter(r => r.row[1] === type);
+            userGoals = userGoals.filter(r => r.row[2] === type);
         }
 
         return userGoals.map((r, index) => ({
-            email: r.row[0] || "",
-            type: r.row[1] || "",
-            text: r.row[2] || "",
-            createdAt: r.row[3] || "",
-            status: r.row[4] || "Pending",
-            reflection: r.row[5] || "",
-            wentWell: r.row[6] || "",
-            challenges: r.row[7] || "",
-            left: r.row[8] || "",
+            username: r.row[0] || "",
+            email: r.row[1] || "",
+            type: r.row[2] || "",
+            text: r.row[3] || "",
+            createdAt: r.row[4] || "",
+            status: r.row[5] || "Pending",
+            reflection: r.row[6] || "",
+            wentWell: r.row[7] || "",
+            challenges: r.row[8] || "",
+            left: r.row[9] || "",
             rowIndex: r.absoluteIndex
         }));
 

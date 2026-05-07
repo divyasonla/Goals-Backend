@@ -17,11 +17,12 @@ app.use(express.json());
 //   methods: ['GET', 'POST', 'PUT', 'DELETE'], // Allowed HTTP methods
 //   credentials: true, // Allow cookies if needed
 // }));\
-
+// 'http://localhost:8080'
 
 const allowedOrigins = [
   'https://goals-frontend-rosy.vercel.app',
   'https://goals-frontend-mzhawki6i-divyas-projects-4af8f9ad.vercel.app',
+  
 ];
 
 app.use(cors({

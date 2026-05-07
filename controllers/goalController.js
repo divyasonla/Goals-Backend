@@ -28,6 +28,7 @@ const dailyGoalsHandler = async (req, res) => {
         if (action === 'add') {
             const dateStr = new Date().toISOString().split("T")[0];
             const goalData = [
+                data.username,
                 email,
                 'Daily',
                 data.dailyGoal,
@@ -103,6 +104,7 @@ const weeklyGoalsHandler = async (req, res) => {
         if (action === 'add') {
             const currentWeek = data.week || getCurrentWeek();
             const goalData = [
+                data.username,
                 email,
                 'Weekly',
                 data.weeklyGoal,
