@@ -49,6 +49,7 @@ const dailyGoalsHandler = async (req, res) => {
             if (!rowIndex) return res.status(400).json({ error: "Missing rowIndex for update" });
 
             const goalData = [
+                data.username,
                 email,
                 'Daily',
                 data.dailyGoal,
@@ -125,6 +126,7 @@ const weeklyGoalsHandler = async (req, res) => {
             if (!rowIndex) return res.status(400).json({ error: "Missing rowIndex for update" });
 
             const goalData = [
+                data.username,
                 email,
                 'Weekly',
                 data.weeklyGoal,
