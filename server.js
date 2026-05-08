@@ -22,7 +22,7 @@ app.use(express.json());
 const allowedOrigins = [
   'https://goals-frontend-rosy.vercel.app',
   'https://goals-frontend-mzhawki6i-divyas-projects-4af8f9ad.vercel.app',
-  
+  'http://localhost:8080'
 ];
 
 app.use(cors({

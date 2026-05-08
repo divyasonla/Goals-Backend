@@ -63,7 +63,7 @@ const updateGoalInSheet = async (rowIndex, data) => {
         const type = data[2];
         const sheetName = type === 'Weekly' ? 'Sheet2' : 'Sheet1';
 
-        const range = `${sheetName}!A${rowIndex}:I${rowIndex}`;
+        const range = `${sheetName}!A${rowIndex}:J${rowIndex}`;
         const response = await sheets.spreadsheets.values.update({
             spreadsheetId: sheetId,
             range,
