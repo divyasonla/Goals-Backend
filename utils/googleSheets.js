@@ -36,7 +36,7 @@ const appendGoalToSheet = async (data) => {
 
         const response = await sheets.spreadsheets.values.append({
             spreadsheetId: sheetId,
-            range: `${sheetName}!A2:I`, // Start appending from row 2
+            range: `${sheetName}!A2:K`, // J/K store the local submission date and phase snapshot.
             valueInputOption: 'USER_ENTERED',
             requestBody: {
                 values: [data]
@@ -80,12 +80,58 @@ const updateGoalInSheet = async (rowIndex, data) => {
     }
 }
 
-const fetchGoalsFromSheet = async (userEmail, type) => {
+const deleteGoalFromSheet = async (rowIndex, type) => {
+    const numericRowIndex = Number(rowIndex);
+    if (!Number.isInteger(numericRowIndex) || numericRowIndex < 2) {
+        throw new Error('A valid goal row is required.');
+    }
+
+    try {
+        const sheets = await getGoogleSheetsClient();
+        const spreadsheetId = getSheetId();
+        if (!sheets || !spreadsheetId) {
+            console.log(`Google Sheets integration mock deleting ${type} row ${numericRowIndex}`);
+            return { success: true, mocked: true };
+        }
+
+        const sheetName = type === 'Weekly' ? 'Sheet2' : 'Sheet1';
+        const spreadsheet = await sheets.spreadsheets.get({
+            spreadsheetId,
+            fields: 'sheets.properties(sheetId,title)'
+        });
+        const sheet = (spreadsheet.data.sheets || []).find((entry) => entry.properties?.title === sheetName);
+        if (!sheet) throw new Error(`Google Sheets tab ${sheetName} was not found.`);
+
+        const response = await sheets.spreadsheets.batchUpdate({
+            spreadsheetId,
+            requestBody: {
+                requests: [{
+                    deleteDimension: {
+                        range: {
+                            sheetId: sheet.properties.sheetId,
+                            dimension: 'ROWS',
+                            startIndex: numericRowIndex - 1,
+                            endIndex: numericRowIndex
+                        }
+                    }
+                }]
+            }
+        });
+        return { success: true, response: response.data };
+    } catch (error) {
+        console.error('Error deleting goal from Google Sheets', error);
+        throw error;
+    }
+};
+
+const fetchGoalsFromSheet = async (userEmail, type, options = {}) => {
+    const strict = options.strict === true;
     try {
         const sheets = await getGoogleSheetsClient();
         const sheetId = getSheetId();
 
         if (!sheets || !sheetId) {
+            if (strict) throw new Error('Google Sheets is not configured for report generation.');
             return []; // mocked response
         }
 
@@ -109,7 +155,8 @@ const fetchGoalsFromSheet = async (userEmail, type) => {
 
         let userGoals = dataRows;
         if (userEmail) {
-            userGoals = userGoals.filter(r => r.row[0] === userEmail);
+            const normalizedEmail = String(userEmail).trim().toLowerCase();
+            userGoals = userGoals.filter(r => String(r.row[0] || '').trim().toLowerCase() === normalizedEmail);
         }
 
         if (type) {
@@ -126,11 +173,14 @@ const fetchGoalsFromSheet = async (userEmail, type) => {
             wentWell: r.row[6] || "",
             challenges: r.row[7] || "",
             left: r.row[8] || "",
+            learningDate: r.row[9] || (r.row[1] === 'Daily' ? r.row[3] || '' : ''),
+            phaseAtSubmission: r.row[10] || '',
             rowIndex: r.absoluteIndex
         }));
 
     } catch (error) {
         console.error('Error fetching from Google Sheets', error);
+        if (strict) throw error;
         return [];
     }
 };
@@ -138,5 +188,6 @@ const fetchGoalsFromSheet = async (userEmail, type) => {
 module.exports = {
     appendGoalToSheet,
     updateGoalInSheet,
+    deleteGoalFromSheet,
     fetchGoalsFromSheet
 };

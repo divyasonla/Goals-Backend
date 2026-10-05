@@ -3,6 +3,7 @@ const express = require('express');
 const mongoose = require('mongoose');
 const authRoutes = require('./routes/authRoutes');
 const cors = require('cors');
+const { startPhaseDeadlineScheduler } = require('./services/phaseDeadlineScheduler');
 
 
 const app = express();
@@ -33,7 +34,7 @@ app.use(cors({
       callback(new Error('Not allowed by CORS'));
     }
   },
-  methods: ['GET', 'POST', 'PUT', 'DELETE'],
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
   credentials: true,
 }));
 
@@ -45,5 +46,8 @@ app.use('/api/auth', authRoutes);
 // MongoDB Connection
 mongoose.connect(process.env.MONGO_URI).then(() => {
   console.log('Connected to MongoDB');
-  app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+  app.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`);
+    startPhaseDeadlineScheduler();
+  });
 }).catch((err) => console.error('MongoDB connection error:', err));

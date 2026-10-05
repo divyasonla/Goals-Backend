@@ -7,7 +7,11 @@ exports.signup = async (req, res) => {
   const body = req.body || {};
   const { name, email, password, role } = body;
 
-  console.log('Signup function called with:', body);
+  // Public signup cannot assign privileged teacher/Admin access. Existing teacher
+  // accounts continue to use the existing role stored in MongoDB.
+  if (role === 'teacher') {
+    return res.status(403).json({ message: 'Teacher/Admin accounts must be provisioned by an administrator.' });
+  }
 
   try {
     // Check if user already exists
@@ -18,7 +22,7 @@ exports.signup = async (req, res) => {
     }
 
     // Create new user
-    const user = new User({ name, email, password, role: role || 'student' });
+    const user = new User({ name, email, password, role: 'student' });
     await user.save();
 
     // Generate JWT token
@@ -39,8 +43,6 @@ exports.signup = async (req, res) => {
 exports.login = async (req, res) => {
   const body = req.body || {};
   const { email, password } = body;
-
-  console.log('Login function called with:', body);
 
   try {
     // Check if user exists
