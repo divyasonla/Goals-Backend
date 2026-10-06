@@ -29,7 +29,8 @@ const requireStudent = (req, res, next) => {
 };
 
 const requireTeacher = (req, res, next) => {
-  if (req.authUser?.role !== 'teacher') {
+  const role = String(req.authUser?.role || '').toLowerCase();
+  if (!['teacher', 'admin', 'aa'].includes(role)) {
     return res.status(403).json({ success: false, error: 'Teacher/Admin access required.' });
   }
   return next();

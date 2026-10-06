@@ -1,5 +1,5 @@
 const mongoose = require('mongoose');
-const bcrypt = require('bcrypt');
+const bcrypt = require('bcryptjs');
 
 const phaseChangeRequestSchema = new mongoose.Schema({
   currentPhase: { type: String, required: true },
@@ -47,7 +47,7 @@ const userSchema = new mongoose.Schema({
   role: {
     type: String,
     required: true,
-    enum: ['student', 'teacher'], // Define allowed roles
+    enum: ['student', 'teacher', 'admin', 'aa'], // Define allowed roles
   },
   currentPhase: { type: String, trim: true, maxlength: 60, default: null },
   phaseStartDate: { type: String, match: /^\d{4}-\d{2}-\d{2}$/ },
@@ -60,8 +60,12 @@ const userSchema = new mongoose.Schema({
   }],
   phaseChangeRequests: { type: [phaseChangeRequestSchema], default: [] },
   phaseProgressHistory: { type: [phaseProgressHistorySchema], default: [] },
-  resetToken: { type: String },
-  resetExpires: { type: Date },
+  otpHash: { type: String, default: null },
+  otpExpiresAt: { type: Date, default: null },
+  otpCreatedAt: { type: Date, default: null },
+  otpAttempts: { type: Number, default: 0 },
+  resetToken: { type: String, default: null },
+  resetExpires: { type: Date, default: null },
   // Encrypted application-managed copy of the student's Gemini API key.
   // Excluded from normal queries so it cannot leak through user responses.
   geminiApiKeyEncrypted: { type: String, select: false },

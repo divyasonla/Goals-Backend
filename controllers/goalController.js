@@ -2,6 +2,7 @@ const { appendGoalToSheet, fetchGoalsFromSheet, updateGoalInSheet, deleteGoalFro
 const Report = require('../models/Report');
 const GoalTaskBreakdown = require('../models/GoalTaskBreakdown');
 const User = require('../models/User');
+const GoalAuditLog = require('../models/GoalAuditLog');
 const mongoose = require('mongoose');
 const { GoogleGenAI, Type } = require('@google/genai');
 const PERSONAL_GEMINI_KEY_REQUIRED = 'Please add your Gemini API key to use AI features.';
@@ -186,14 +187,207 @@ const getAdminStudentGoalsHandler = async (req, res) => {
             success: true,
             student,
             goals: {
-                daily: dailyGoals.map((g) => ({ goal: g.text, timeframe: 'daily', date: g.createdAt, status: g.status, reflection: g.reflection, wentWell: g.wentWell, challenges: g.challenges, left: g.left })),
-                weekly: weeklyGoals.map((g) => ({ goal: g.text, timeframe: 'weekly', date: g.createdAt, status: g.status, reflection: g.reflection, wentWell: g.wentWell, challenges: g.challenges, left: g.left }))
+                daily: dailyGoals.map((g) => ({
+                    id: `daily_${g.rowIndex}`,
+                    rowIndex: g.rowIndex,
+                    goal: g.text,
+                    timeframe: 'daily',
+                    date: g.createdAt,
+                    status: g.status,
+                    reflection: g.reflection,
+                    wentWell: g.wentWell,
+                    challenges: g.challenges,
+                    left: g.left,
+                    phase: g.phaseAtSubmission || '',
+                    learningDate: g.learningDate || ''
+                })),
+                weekly: weeklyGoals.map((g) => ({
+                    id: `weekly_${g.rowIndex}`,
+                    rowIndex: g.rowIndex,
+                    goal: g.text,
+                    timeframe: 'weekly',
+                    date: g.createdAt,
+                    status: g.status,
+                    reflection: g.reflection,
+                    wentWell: g.wentWell,
+                    challenges: g.challenges,
+                    left: g.left,
+                    phase: g.phaseAtSubmission || '',
+                    learningDate: g.learningDate || ''
+                }))
             },
             breakdowns
         });
     } catch (error) {
         console.error('Admin student goals read error:', error);
         return res.status(500).json({ success: false, error: 'Unable to load student goals and tasks.' });
+    }
+};
+
+const parseGoalIdentifier = (goalId, fallback = {}) => {
+    const rawId = String(goalId || '').trim();
+    let type = null;
+    let rowIndex = null;
+
+    if (rawId.startsWith('daily_')) {
+        type = 'Daily';
+        rowIndex = Number(rawId.slice(6));
+    } else if (rawId.startsWith('weekly_')) {
+        type = 'Weekly';
+        rowIndex = Number(rawId.slice(7));
+    } else {
+        const rawTimeframe = String(fallback.timeframe || fallback.type || '').trim().toLowerCase();
+        if (rawTimeframe === 'weekly') {
+            type = 'Weekly';
+        } else if (rawTimeframe === 'daily') {
+            type = 'Daily';
+        }
+        rowIndex = Number(rawId || fallback.rowIndex);
+    }
+
+    if (!type || !Number.isInteger(rowIndex) || rowIndex < 2) {
+        return null;
+    }
+    return { type, rowIndex, id: `${type.toLowerCase()}_${rowIndex}` };
+};
+
+const updateAdminStudentGoalHandler = async (req, res) => {
+    const studentId = req.params.studentId || req.body?.studentId || req.query?.studentId;
+    if (!studentId || !mongoose.isValidObjectId(studentId)) {
+        return res.status(404).json({ success: false, error: 'Student not found.' });
+    }
+
+    const target = parseGoalIdentifier(req.params.goalId, req.body || req.query);
+    if (!target) {
+        return res.status(400).json({ success: false, error: 'Valid goal identifier is required.' });
+    }
+
+    const { goal, status, reflection, wentWell, challenges, left, date, week } = req.body || {};
+
+    if (goal !== undefined && (typeof goal !== 'string' || !goal.trim() || goal.length > 1000)) {
+        return res.status(400).json({ success: false, error: 'Goal text must be a non-empty string under 1000 characters.' });
+    }
+    if (status !== undefined && !['Pending', 'In Progress', 'Completed'].includes(status)) {
+        return res.status(400).json({ success: false, error: 'Goal status must be Pending, In Progress, or Completed.' });
+    }
+    for (const [key, val] of Object.entries({ reflection, wentWell, challenges, left })) {
+        if (val !== undefined && (typeof val !== 'string' || val.length > 2000)) {
+            return res.status(400).json({ success: false, error: `${key} must be a string under 2000 characters.` });
+        }
+    }
+
+    try {
+        const student = await User.findOne({ _id: studentId, role: 'student' }).select('_id name email');
+        if (!student) return res.status(404).json({ success: false, error: 'Student not found.' });
+
+        const existingGoals = await fetchGoalsFromSheet(student.email, target.type, { strict: true });
+        const existing = existingGoals.find((g) => g.rowIndex === target.rowIndex);
+        if (!existing || existing.email.toLowerCase() !== student.email.toLowerCase()) {
+            return res.status(404).json({ success: false, error: 'Goal not found.' });
+        }
+
+        const updatedGoalText = goal !== undefined ? goal.trim() : (req.body?.dailyGoal || req.body?.weeklyGoal || existing.text);
+        const updatedStatus = status !== undefined ? status : existing.status;
+        const updatedDate = date !== undefined ? date : (week !== undefined ? week : existing.createdAt);
+        const updatedReflection = reflection !== undefined ? reflection : existing.reflection;
+        const updatedWentWell = wentWell !== undefined ? wentWell : existing.wentWell;
+        const updatedChallenges = challenges !== undefined ? challenges : existing.challenges;
+        const updatedLeft = left !== undefined ? left : existing.left;
+
+        const rowData = [
+            student.email,
+            target.type,
+            updatedGoalText,
+            updatedDate,
+            updatedStatus,
+            updatedReflection,
+            updatedWentWell,
+            updatedChallenges,
+            updatedLeft
+        ];
+
+        await updateGoalInSheet(target.rowIndex, rowData);
+
+        await GoalAuditLog.create({
+            action: 'GOAL_UPDATED',
+            studentId: student._id,
+            studentEmail: student.email,
+            goalId: target.id,
+            timeframe: target.type.toLowerCase(),
+            performedBy: req.authUser._id,
+            performedByEmail: req.authUser.email,
+            performedAt: new Date(),
+            details: {
+                previous: { goal: existing.text, status: existing.status },
+                updated: { goal: updatedGoalText, status: updatedStatus }
+            }
+        });
+
+        const updatedGoal = {
+            id: target.id,
+            rowIndex: target.rowIndex,
+            goal: updatedGoalText,
+            timeframe: target.type.toLowerCase(),
+            date: updatedDate,
+            status: updatedStatus,
+            reflection: updatedReflection,
+            wentWell: updatedWentWell,
+            challenges: updatedChallenges,
+            left: updatedLeft,
+            phase: existing.phaseAtSubmission || '',
+            learningDate: existing.learningDate || ''
+        };
+
+        return res.json({ success: true, message: 'Goal updated successfully.', goal: updatedGoal });
+    } catch (error) {
+        console.error('Admin student goal update error:', error);
+        return res.status(500).json({ success: false, error: 'Unable to update student goal.' });
+    }
+};
+
+const deleteAdminStudentGoalHandler = async (req, res) => {
+    const studentId = req.params.studentId || req.body?.studentId || req.query?.studentId;
+    if (!studentId || !mongoose.isValidObjectId(studentId)) {
+        return res.status(404).json({ success: false, error: 'Student not found.' });
+    }
+
+    const target = parseGoalIdentifier(req.params.goalId, req.body || req.query);
+    if (!target) {
+        return res.status(400).json({ success: false, error: 'Valid goal identifier is required.' });
+    }
+
+    try {
+        const student = await User.findOne({ _id: studentId, role: 'student' }).select('_id name email');
+        if (!student) return res.status(404).json({ success: false, error: 'Student not found.' });
+
+        const existingGoals = await fetchGoalsFromSheet(student.email, target.type, { strict: true });
+        const existing = existingGoals.find((g) => g.rowIndex === target.rowIndex);
+        if (!existing || existing.email.toLowerCase() !== student.email.toLowerCase()) {
+            return res.status(404).json({ success: false, error: 'Goal not found.' });
+        }
+
+        await deleteGoalFromSheet(target.rowIndex, target.type);
+
+        await GoalAuditLog.create({
+            action: 'GOAL_DELETED',
+            studentId: student._id,
+            studentEmail: student.email,
+            goalId: target.id,
+            timeframe: target.type.toLowerCase(),
+            performedBy: req.authUser._id,
+            performedByEmail: req.authUser.email,
+            performedAt: new Date(),
+            details: {
+                deletedGoal: existing.text,
+                date: existing.createdAt,
+                status: existing.status
+            }
+        });
+
+        return res.json({ success: true, message: 'Goal deleted successfully.' });
+    } catch (error) {
+        console.error('Admin student goal deletion error:', error);
+        return res.status(500).json({ success: false, error: 'Unable to delete student goal.' });
     }
 };
 
@@ -808,6 +1002,8 @@ module.exports = {
     acceptTaskBreakdownHandler,
     listAdminStudentsHandler,
     getAdminStudentGoalsHandler,
+    updateAdminStudentGoalHandler,
+    deleteAdminStudentGoalHandler,
     updateAdminTaskHandler,
     deleteAdminTaskHandler
 };

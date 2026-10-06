@@ -1,5 +1,5 @@
 const express = require('express');
-const { signup, login, forgotPassword, resetPassword } = require('../controllers/authController');
+const { signup, login, forgotPassword, verifyOtp, resetPassword } = require('../controllers/authController');
 const { getGeminiKeySettings, saveGeminiKeySettings, deleteGeminiKeySettings } = require('../controllers/settingsController');
 const {
     analyzeGoalHandler,
@@ -13,6 +13,8 @@ const {
     acceptTaskBreakdownHandler,
     listAdminStudentsHandler,
     getAdminStudentGoalsHandler,
+    updateAdminStudentGoalHandler,
+    deleteAdminStudentGoalHandler,
     updateAdminTaskHandler,
     deleteAdminTaskHandler
 } = require('../controllers/goalController');
@@ -45,6 +47,7 @@ router.post('/signup', validateSignup, signup);
 // Login Route
 router.post('/login', validateLogin, login);
 router.post('/forgot-password', forgotPassword);
+router.post('/verify-otp', verifyOtp);
 router.post('/reset-password', resetPassword);
 
 // Goal and Report Routes
@@ -75,6 +78,10 @@ router.get('/admin/holidays', authenticate, requireTeacher, phaseController.list
 router.post('/admin/holidays', authenticate, requireTeacher, phaseController.addHoliday);
 router.delete('/admin/holidays/:holidayId', authenticate, requireTeacher, phaseController.deleteHoliday);
 router.get('/admin/students/:studentId/goals', authenticate, requireTeacher, getAdminStudentGoalsHandler);
+router.patch('/admin/students/:studentId/goals/:goalId', authenticate, requireTeacher, updateAdminStudentGoalHandler);
+router.delete('/admin/students/:studentId/goals/:goalId', authenticate, requireTeacher, deleteAdminStudentGoalHandler);
+router.patch('/admin/goals/:goalId', authenticate, requireTeacher, updateAdminStudentGoalHandler);
+router.delete('/admin/goals/:goalId', authenticate, requireTeacher, deleteAdminStudentGoalHandler);
 router.get('/admin/students/:studentId/growth-insights', authenticate, requireTeacher, adminStudentGrowthHandler);
 router.get('/admin/students/:studentId/phase-progress', authenticate, requireTeacher, phaseController.getAdminStudentPhaseProgress);
 router.patch('/admin/students/:studentId/phase', authenticate, requireTeacher, phaseController.assignStudentPhase);
