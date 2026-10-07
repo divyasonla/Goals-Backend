@@ -7,37 +7,94 @@ const { sendPasswordResetOtpEmail } = require('../utils/mailer');
 // Signup Controller
 exports.signup = async (req, res) => {
   const body = req.body || {};
-  const { name, email, password, role } = body;
+  const { name, email, password, confirmPassword, role } = body;
+
+  // Validate required fields
+  if (!name || !email || !password) {
+    return res.status(400).json({
+      success: false,
+      error: 'Please fill in all required fields (name, email, password).',
+      message: 'Please fill in all required fields (name, email, password).',
+      code: 'MISSING_FIELDS'
+    });
+  }
+
+  // Validate password match if confirmPassword is provided
+  if (confirmPassword !== undefined && password !== confirmPassword) {
+    return res.status(400).json({
+      success: false,
+      error: 'Passwords do not match. Please verify and re-enter your password.',
+      message: 'Passwords do not match. Please verify and re-enter your password.',
+      code: 'PASSWORDS_DO_NOT_MATCH'
+    });
+  }
+
+  // Validate password length
+  if (typeof password !== 'string' || password.length < 6) {
+    return res.status(400).json({
+      success: false,
+      error: 'Password must be at least 6 characters long.',
+      message: 'Password must be at least 6 characters long.',
+      code: 'PASSWORD_TOO_SHORT'
+    });
+  }
 
   // Public signup cannot assign privileged teacher/Admin/AA access. Existing teacher
   // accounts continue to use the existing role stored in MongoDB.
   if (['teacher', 'admin', 'aa'].includes(String(role || '').toLowerCase())) {
-    return res.status(403).json({ message: 'Teacher/Admin accounts must be provisioned by an administrator.' });
+    return res.status(403).json({
+      success: false,
+      error: 'Teacher/Admin accounts must be provisioned by an administrator.',
+      message: 'Teacher/Admin accounts must be provisioned by an administrator.',
+      code: 'FORBIDDEN_ROLE'
+    });
   }
+
+  const cleanEmail = String(email).trim().toLowerCase();
+  const cleanName = String(name).trim();
 
   try {
     // Check if user already exists
-    const existingUser = await User.findOne({ email });
+    const existingUser = await User.findOne({ email: cleanEmail });
     if (existingUser) {
-      console.error('Signup error: User already exists');
-      return res.status(400).json({ message: 'User already exists' });
+      return res.status(400).json({
+        success: false,
+        error: 'An account with this email already exists. Please log in or use a different email.',
+        message: 'An account with this email already exists. Please log in or use a different email.',
+        code: 'ACCOUNT_ALREADY_EXISTS'
+      });
     }
 
     // Create new user
-    const user = new User({ name, email, password, role: 'student' });
+    const user = new User({ name: cleanName, email: cleanEmail, password, role: 'student' });
     await user.save();
 
     // Generate JWT token
     const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: '1h' });
 
     res.status(201).json({
-      message: 'User created successfully',
+      success: true,
+      message: 'Account created successfully!',
       token,
       user: { id: user._id, username: user.name, email: user.email, role: user.role }
     });
   } catch (error) {
+    // Handle MongoDB duplicate key error (code 11000)
+    if (error && (error.code === 11000 || (error.name === 'MongoServerError' && error.code === 11000))) {
+      return res.status(400).json({
+        success: false,
+        error: 'An account with this email already exists. Please log in or use a different email.',
+        message: 'An account with this email already exists. Please log in or use a different email.',
+        code: 'ACCOUNT_ALREADY_EXISTS'
+      });
+    }
+
     console.error('Signup error:', error);
-    res.status(500).json({ message: 'Server error', error: error.message || error });
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Unable to create account. Please try again.',
+      message: error.message || 'Unable to create account. Please try again.'
+    });
   }
 };
 
@@ -46,25 +103,56 @@ exports.login = async (req, res) => {
   const body = req.body || {};
   const { email, password } = body;
 
+  if (!email || !password) {
+    return res.status(400).json({
+      success: false,
+      error: 'Please provide both email and password.',
+      message: 'Please provide both email and password.',
+      code: 'MISSING_CREDENTIALS'
+    });
+  }
+
+  const cleanEmail = String(email).trim().toLowerCase();
+
   try {
     // Check if user exists
-    const user = await User.findOne({ email });
+    const user = await User.findOne({ email: cleanEmail });
     if (!user) {
-      return res.status(404).json({ message: 'User not found' });
+      return res.status(404).json({
+        success: false,
+        error: 'No account found with this email. Please check your email or create a new account.',
+        message: 'No account found with this email. Please check your email or create a new account.',
+        code: 'USER_NOT_FOUND'
+      });
     }
 
     // Compare passwords
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
-      return res.status(400).json({ message: 'Invalid credentials' });
+      return res.status(401).json({
+        success: false,
+        error: 'Incorrect password. Please verify your password and try again.',
+        message: 'Incorrect password. Please verify your password and try again.',
+        code: 'INCORRECT_PASSWORD'
+      });
     }
 
     // Generate JWT token
     const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: '1h' });
 
-    res.status(200).json({ token, user: { id: user._id, username: user.name, email: user.email, role: user.role } });
+    res.status(200).json({
+      success: true,
+      message: 'Logged in successfully!',
+      token,
+      user: { id: user._id, username: user.name, email: user.email, role: user.role }
+    });
   } catch (error) {
-    res.status(500).json({ message: 'Server error', error: error.message || error });
+    console.error('Login error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Server error occurred during login. Please try again.',
+      message: error.message || 'Server error occurred during login. Please try again.'
+    });
   }
 };
 

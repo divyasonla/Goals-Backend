@@ -28,7 +28,12 @@ const router = express.Router();
 const validateSignup = (req, res, next) => {
   const { name, email, password } = req.body || {};
   if (!name || !email || !password) {
-    return res.status(400).json({ message: 'All fields are required' });
+    return res.status(400).json({
+      success: false,
+      error: 'Please fill in all fields (name, email, and password).',
+      message: 'Please fill in all fields (name, email, and password).',
+      code: 'MISSING_FIELDS'
+    });
   }
   next();
 };
@@ -36,7 +41,12 @@ const validateSignup = (req, res, next) => {
 const validateLogin = (req, res, next) => {
   const { email, password } = req.body || {};
   if (!email || !password) {
-    return res.status(400).json({ message: 'Email and password are required' });
+    return res.status(400).json({
+      success: false,
+      error: 'Please provide both email and password.',
+      message: 'Please provide both email and password.',
+      code: 'MISSING_CREDENTIALS'
+    });
   }
   next();
 };
